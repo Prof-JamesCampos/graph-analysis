@@ -1,13 +1,9 @@
 <script lang="ts">
   import type { App } from 'obsidian'
-  import { hoverPreview, isInVault, isLinked } from 'obsidian-community-lib'
   import type AnalysisView from 'src/AnalysisView'
   import {
     ANALYSIS_TYPES,
-    ICON,
-    LINKED,
     MEASURE,
-    NOT_LINKED,
   } from 'src/Constants'
   import type {
     GraphAnalysisSettings,
@@ -24,9 +20,11 @@
     openOrSwitch,
     presentPath,
     roundNumber,
+    isInVault,   // Importado do Utility local [cite: 29]
+    isLinked,    // Importado do Utility local [cite: 29]
+    hoverPreview // Importado do Utility local [cite: 28]
   } from 'src/Utility'
   import { onMount } from 'svelte'
-  import FaLink from 'svelte-icons/fa/FaLink.svelte'
   import InfiniteScroll from 'svelte-infinite-scroll'
   import ExtensionIcon from './ExtensionIcon.svelte'
   import ImgThumbnail from './ImgThumbnail.svelte'
@@ -70,23 +68,19 @@
     newBatch = []
   })
 
-  onMount(() => {})
-
   $: promiseSortedResults = !plugin.g
     ? null
     : plugin.g.algs['HITS']('')
         .then((results: HITSResult) => {
-          console.log('hits')
           const componentResults: ComponentResults[] = []
 
+          // Utiliza a instância do grafo para iterar [cite: 32]
           plugin.g.forEachNode((to) => {
             const authority = roundNumber(results.authorities[to])
             const hub = roundNumber(results.hubs[to])
-            if (!(authority === 0 && hub === 0)) {
+            if (!(authority === 0 && hub === 0)) { 
               const resolved = !to.endsWith('.md') || isInVault(app, to)
-
-              const img =
-                plugin.settings.showImgThumbnails && isImg(to)
+              const img = plugin.settings.showImgThumbnails && isImg(to)
                   ? getImgBufferPromise(app, to)
                   : null
 
@@ -96,19 +90,15 @@
                 to,
                 resolved,
                 img,
-              })
+              }) 
             }
           })
           const greater = ascOrder ? 1 : -1
           const lesser = ascOrder ? -1 : 1
           componentResults.sort((a, b) => {
             return sortBy
-              ? a.authority > b.authority
-                ? greater
-                : lesser
-              : a.hub > b.hub
-              ? greater
-              : lesser
+              ? a.authority > b.authority ? greater : lesser 
+              : a.hub > b.hub ? greater : lesser 
           })
           return componentResults
         })
@@ -116,7 +106,7 @@
           newBatch = res.slice(0, size)
           setTimeout(() => {
             blockSwitch = false
-          }, 100)
+          }, 100) 
           return res
         })
 
@@ -143,79 +133,89 @@
   bind:page
 />
 
-<table class="GA-table markdown-preview-view" bind:this={current_component}>
-  <thead>
-    <tr>
-      <th scope="col">Note</th>
-      <th scope="col">Authority</th>
-      <th scope="col">Hub</th>
-    </tr>
-  </thead>
+<div class="GA-table-wrapper">
+  <table class="GA-table markdown-preview-view" bind:this={current_component}>
+    <thead>
+      <tr>
+        <th scope="col">Note</th>
+        <th scope="col">Authority</th>
+        <th scope="col">Hub</th>
+      </tr> 
+    </thead>
+    <tbody> {#if promiseSortedResults}
+        {#await promiseSortedResults then sortedResults}
+          {#key sortedResults}
+            {#each visibleData as node}
+              {#if node !== undefined}
+                <tr class="{classExt(node.to)}"> 
+                  <td
+                    on:click={async (e) => await openOrSwitch(app, node.to, e)}
+                    on:contextmenu={(e) => openMenu(e, app)}
+                    on:mouseover={(e) => hoverPreview(e, view, dropPath(node.to))}
+                  > [cite: 42]
+                    <ExtensionIcon path={node.to} />
+                    <span
+                      class="internal-link 
+                      {node.resolved ? '' : 'is-unresolved'}  
+                      {currNode === node.to ? 'currNode' : ''}" 
+                    >
+                      {presentPath(node.to)}
+                    </span>
+                    {#if isImg(node.to)}
+                      <ImgThumbnail img={node.img} />
+                    {/if} 
+                  </td>
+                  <td class={MEASURE}>{node.authority}</td>
+                  <td class={MEASURE}>{node.hub}</td>
+                </tr>
+              {/if}
+            {/each}
+          {/key}
+        {/await}
+      {/if}
+    </tbody>
+  </table>
+
   {#if promiseSortedResults}
     {#await promiseSortedResults then sortedResults}
-      {#key sortedResults}
-        {#each visibleData as node}
-          {#if node !== undefined}
-            <!-- svelte-ignore a11y-unknown-aria-attribute -->
-            <tr
-              class="
-              {classExt(node.to)}"
-            >
-              <td
-                on:click={async (e) => await openOrSwitch(app, node.to, e)}
-                on:contextmenu={(e) => openMenu(e, app)}
-                on:mouseover={(e) => hoverPreview(e, view, dropPath(node.to))}
-              >
-                <ExtensionIcon path={node.to} />
-
-                <span
-                  class="internal-link 
-                  {node.resolved ? '' : 'is-unresolved'} 
-                    {currNode === node.to ? 'currNode' : ''}"
-                >
-                  {presentPath(node.to)}
-                </span>
-                {#if isImg(node.to)}
-                  <ImgThumbnail img={node.img} />
-                {/if}
-              </td>
-              <td class={MEASURE}>{node.authority}</td>
-              <td class={MEASURE}>{node.hub}</td>
-            </tr>
-          {/if}
-        {/each}
-
-        <InfiniteScroll
-          hasMore={sortedResults.length > visibleData.length}
-          threshold={100}
-          elementScroll={current_component.parentNode}
-          on:loadMore={() => {
-            if (!blockSwitch) {
-              page++
-              newBatch = sortedResults.slice(size * page, size * (page + 1) - 1)
-              console.log({ newBatch })
-            }
-          }}
-        />
+      <InfiniteScroll
+        hasMore={sortedResults.length > visibleData.length}
+        threshold={100} 
+        elementScroll={current_component?.parentNode}
+        on:loadMore={() => {
+          if (!blockSwitch) {
+            page++
+            newBatch = sortedResults.slice(size * page, size * (page + 1) - 1)
+          }
+        }}
+      />
+      <div class="GA-table-summary">
         {visibleData.length} / {sortedResults.length}
-      {/key}
+      </div> 
     {/await}
   {/if}
-</table>
+</div>
 
 <style>
   table.GA-table {
     border-collapse: collapse;
+    width: 100%;
   }
   table.GA-table,
   table.GA-table tr,
   table.GA-table td {
-    border: 1px solid var(--background-modifier-border);
+    border: 1px solid var(--background-modifier-border); 
   }
 
   table.GA-table td {
-    padding: 2px;
-    /* font-size: var(--font-size-secondary); */
+    padding: 2px; 
+  }
+
+  .GA-table-summary {
+    padding: 8px;
+    text-align: right;
+    font-size: var(--font-size-small);
+    color: var(--text-muted);
   }
 
   .is-unresolved {
@@ -223,7 +223,7 @@
   }
 
   .GA-node {
-    overflow: hidden;
+    overflow: hidden; 
   }
 
   .currNode {

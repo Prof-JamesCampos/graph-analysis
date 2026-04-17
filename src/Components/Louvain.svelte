@@ -1,6 +1,5 @@
 <script lang="ts">
   import type { App } from 'obsidian'
-  import { hoverPreview, isInVault, isLinked } from 'obsidian-community-lib'
   import type AnalysisView from 'src/AnalysisView'
   import { ANALYSIS_TYPES, ICON, LINKED, NOT_LINKED } from 'src/Constants'
   import type { GraphAnalysisSettings, Subtype } from 'src/Interfaces'
@@ -13,6 +12,9 @@
     openMenu,
     openOrSwitch,
     presentPath,
+    hoverPreview,
+    isInVault,
+    isLinked
   } from 'src/Utility'
   import { onMount } from 'svelte'
   import FaLink from 'svelte-icons/fa/FaLink.svelte'
@@ -23,7 +25,7 @@
 
   export let app: App
   export let plugin: GraphAnalysisPlugin
-  export let settings: GraphAnalysisSettings
+  //export let settings: GraphAnalysisSettings
   export let view: AnalysisView
   export let currSubtype: Subtype
 
@@ -56,7 +58,6 @@
       visibleData = []
       promiseSortedResults = null
       page = 0
-
       setTimeout(() => (currFile = activeFile), 100)
     }
   })
@@ -116,92 +117,107 @@
   bind:page
 />
 
-<label for="resolution">Resolution: </label>
-<input
-  name="resolution"
-  type="range"
-  min="1"
-  max="20"
-  value={resolution}
-  on:change={(e) => {
-    const value = Number.parseInt(e.target.value)
+<div class="GA-Control-Panel">
+  <label for="resolution">Resolution: </label>
+  <input
+    name="resolution"
+    type="range"
+    min="1"
+    max="20"
+    bind:value={resolution}
+    on:change={() => {
+      if (!frozen) {
+        blockSwitch = true
+        newBatch = []
+        visibleData = []
+        promiseSortedResults = null
+        page = 0
+      }
+    }}
+  />
+  <span>{resolution}</span>
+</div>
 
-    if (!frozen) {
-      blockSwitch = true
-      newBatch = []
-      visibleData = []
-      promiseSortedResults = null
-      page = 0
-    }
-    console.log({ value })
-    resolution = value
-  }}
-/>
-
-<div class="GA-Results" bind:this={current_component}>
-  {#if promiseSortedResults}
-    {#await promiseSortedResults then sortedResults}
-      {#key sortedResults}
-        {#each visibleData as node}
-          {#if node.to !== currNode && node !== undefined}
-            <div
-              class="
-                {node.linked ? LINKED : NOT_LINKED} 
-              {classExt(node.to)}"
-              on:click={async (e) => await openOrSwitch(app, node.to, e)}
-            >
-              <span
-                on:contextmenu={(e) => openMenu(e, app)}
-                on:mouseover={(e) => hoverPreview(e, view, dropPath(node.to))}
+<div class="GA-Results-Container" bind:this={current_component}>
+  <div class="GA-Results">
+    {#if promiseSortedResults}
+      {#await promiseSortedResults then sortedResults}
+        {#key sortedResults}
+          {#each visibleData as node}
+            {#if node.to !== currNode && node !== undefined}
+              <div
+                class="{node.linked ? LINKED : NOT_LINKED} {classExt(node.to)}"
+                on:click={async (e) => await openOrSwitch(app, node.to, e)}
               >
-                {#if node.linked}
-                  <span class={ICON}>
-                    <FaLink />
-                  </span>
-                {/if}
-
-                <ExtensionIcon path={node.to} />
-
                 <span
-                  class="internal-link {node.resolved ? '' : 'is-unresolved'}"
+                  on:contextmenu={(e) => openMenu(e, app)}
+                  on:mouseover={(e) => hoverPreview(e, view, dropPath(node.to))}
                 >
-                  {presentPath(node.to)}
-                </span>
-                {#if isImg(node.to)}
-                  <ImgThumbnail img={node.img} />
-                {/if}
-              </span>
-            </div>
-          {/if}
-        {/each}
+                  {#if node.linked}
+                    <span class={ICON}>
+                      <FaLink />
+                    </span>
+                  {/if}
 
-        <InfiniteScroll
-          hasMore={sortedResults.length > visibleData.length}
-          threshold={100}
-          elementScroll={current_component.parentNode}
-          on:loadMore={() => {
-            if (!blockSwitch) {
-              page++
-              newBatch = sortedResults.slice(size * page, size * (page + 1) - 1)
-              console.log({ newBatch })
-            }
-          }}
-        />
-        {visibleData.length} / {sortedResults.length}
-      {/key}
-    {/await}
-  {/if}
+                  <ExtensionIcon path={node.to} />
+
+                  <span class="internal-link {node.resolved ? '' : 'is-unresolved'}">
+                    {presentPath(node.to)}
+                  </span>
+                  {#if isImg(node.to)}
+                    <ImgThumbnail img={node.img} />
+                  {/if}
+                </span>
+              </div>
+            {/if}
+          {/each}
+
+          <InfiniteScroll
+            hasMore={sortedResults.length > visibleData.length}
+            threshold={100}
+            elementScroll={current_component?.parentNode}
+            on:loadMore={() => {
+              if (!blockSwitch) {
+                page++
+                newBatch = sortedResults.slice(size * page, size * (page + 1) - 1)
+              }
+            }}
+          />
+          
+          <div class="GA-Results-Footer">
+            {visibleData.length} / {sortedResults.length}
+          </div>
+        {/key}
+      {/await}
+    {/if}
+  </div>
 </div>
 
 <style>
   .GA-Results > div {
-    padding: 0px 5px;
+    padding: 2px 5px;
+    cursor: pointer;
   }
+  
+  .GA-Results-Footer {
+    padding: 10px;
+    text-align: right;
+    font-size: var(--font-size-small);
+    color: var(--text-muted);
+  }
+
   .is-unresolved {
     color: var(--text-muted);
   }
 
   .GA-node {
     overflow: hidden;
+  }
+  
+  .GA-Control-Panel {
+    padding: 10px 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
   }
 </style>

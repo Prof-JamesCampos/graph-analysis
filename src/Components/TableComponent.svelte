@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { App } from 'obsidian'
-  import { hoverPreview, isInVault, isLinked } from 'obsidian-community-lib'
+  // IMPORTANTE: Alterado de 'obsidian-community-lib' para 'src/Utility'
   import type AnalysisView from 'src/AnalysisView'
   import {
     ANALYSIS_TYPES,
@@ -23,6 +23,9 @@
     openMenu,
     openOrSwitch,
     presentPath,
+    isInVault, // Implementadas localmente no Utility.ts
+    isLinked,  // Implementadas localmente no Utility.ts
+    hoverPreview
   } from 'src/Utility'
   import { onMount } from 'svelte'
   import FaLink from 'svelte-icons/fa/FaLink.svelte'
@@ -69,7 +72,6 @@
       visibleData = []
       promiseSortedResults = null
       page = 0
-
       setTimeout(() => (currFile = activeFile), 100)
     }
   })
@@ -110,7 +112,7 @@
               }
             })
             componentResults.sort((a, b) => {
-              return a.measure === b.measure
+               return a.measure === b.measure
                 ? a.extra?.length > b.extra?.length
                   ? greater
                   : lesser
@@ -123,7 +125,7 @@
           .then((res) => {
             newBatch = res.slice(0, size)
             setTimeout(() => {
-              blockSwitch = false
+               blockSwitch = false
             }, 100)
             return res
           })
@@ -151,73 +153,75 @@
   bind:page
 />
 
-<table class="GA-table markdown-preview-view" bind:this={current_component}>
-  <thead>
-    <tr>
-      <th scope="col">Note</th>
-      <th scope="col">Value</th>
-    </tr>
-  </thead>
+<div class="GA-table-container">
+  <table class="GA-table markdown-preview-view" bind:this={current_component}>
+    <thead>
+      <tr>
+        <th scope="col">Note</th>
+        <th scope="col">Value</th>
+      </tr>
+    </thead>
+    <tbody>
+      {#if promiseSortedResults}
+        {#await promiseSortedResults then sortedResults}
+          {#key sortedResults}
+            {#each visibleData as node}
+              {#if (currSubtypeInfo.global || node.to !== currNode) && node !== undefined}
+                <tr class="{node.linked ? LINKED : NOT_LINKED} {classExt(node.to)}">
+                  <td
+                    aria-label={node.extra.map(presentPath).join('\n')}
+                    aria-label-position="left"
+                    on:click={async (e) => await openOrSwitch(app, node.to, e)}
+                    on:contextmenu={(e) => openMenu(e, app)}
+                    on:mouseover={(e) => hoverPreview(e, view, dropPath(node.to))}
+                  >
+                    {#if node.linked}
+                      <span class={ICON}>
+                        <FaLink />
+                      </span>
+                    {/if}
+                    <ExtensionIcon path={node.to} />
+                    <span class="internal-link {node.resolved ? '' : 'is-unresolved'}">
+                      {presentPath(node.to)}
+                    </span>
+                    {#if isImg(node.to)}
+                      <ImgThumbnail img={node.img} />
+                    {/if}
+                  </td>
+                  <td class={MEASURE}>{node.measure}</td>
+                </tr>
+              {/if}
+            {/each}
+          {/key}
+        {/await}
+      {/if}
+    </tbody>
+  </table>
+
   {#if promiseSortedResults}
     {#await promiseSortedResults then sortedResults}
-      {#key sortedResults}
-        {#each visibleData as node}
-          {#if (currSubtypeInfo.global || node.to !== currNode) && node !== undefined}
-            <!-- svelte-ignore a11y-unknown-aria-attribute -->
-            <tr
-              class="{node.linked ? LINKED : NOT_LINKED} 
-            {classExt(node.to)}"
-            >
-              <td
-                aria-label={node.extra.map(presentPath).join('\n')}
-                aria-label-position="left"
-                on:click={async (e) => await openOrSwitch(app, node.to, e)}
-                on:contextmenu={(e) => openMenu(e, app)}
-                on:mouseover={(e) => hoverPreview(e, view, dropPath(node.to))}
-              >
-                {#if node.linked}
-                  <span class={ICON}>
-                    <FaLink />
-                  </span>
-                {/if}
-
-                <ExtensionIcon path={node.to} />
-
-                <span
-                  class="internal-link {node.resolved ? '' : 'is-unresolved'}"
-                >
-                  {presentPath(node.to)}
-                </span>
-                {#if isImg(node.to)}
-                  <ImgThumbnail img={node.img} />
-                {/if}
-              </td>
-              <td class={MEASURE}>{node.measure}</td>
-            </tr>
-          {/if}
-        {/each}
-
-        <InfiniteScroll
+       <InfiniteScroll
           hasMore={sortedResults.length > visibleData.length}
           threshold={100}
-          elementScroll={current_component.parentNode}
+          elementScroll={current_component?.parentNode}
           on:loadMore={() => {
             if (!blockSwitch) {
               page++
               newBatch = sortedResults.slice(size * page, size * (page + 1) - 1)
-              console.log({ newBatch })
             }
           }}
         />
-        {visibleData.length} / {sortedResults.length}
-      {/key}
+        <div class="GA-table-footer">
+          {visibleData.length} / {sortedResults.length}
+        </div>
     {/await}
   {/if}
-</table>
+</div>
 
 <style>
   table.GA-table {
     border-collapse: collapse;
+    width: 100%;
   }
   table.GA-table,
   table.GA-table tr,
@@ -227,7 +231,13 @@
 
   table.GA-table td {
     padding: 2px;
-    /* font-size: var(--font-size-secondary); */
+  }
+
+  .GA-table-footer {
+    padding: 8px;
+    text-align: right;
+    font-size: var(--font-size-small);
+    color: var(--text-muted);
   }
 
   .is-unresolved {

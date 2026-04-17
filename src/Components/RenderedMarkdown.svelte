@@ -7,7 +7,6 @@
   export let app: App
   export let line: number
   export let parent: AnalysisView
-  import { jumpToSelection, openOrSwitch } from 'src/Utility'
 
   let renderedSentence = sentence[0] + '==' + sentence[1] + '==' + sentence[2]
   if (sentence.length === 5) {
@@ -33,12 +32,8 @@
 
 <div
   class="CC-sentence"
-  bind:this={el}
-  on:click={async (e) => {
-    await openOrSwitch(app, sourcePath, e)
-    jumpToSelection(app, line, sentence.join(''))
-  }}
-/>
+  bind:this={el}  
+></div>
 
 <style>
   .CC-sentence {

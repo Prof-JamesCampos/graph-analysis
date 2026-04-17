@@ -2,9 +2,8 @@ import commonjs from '@rollup/plugin-commonjs';
 import { nodeResolve } from '@rollup/plugin-node-resolve';
 import typescript from '@rollup/plugin-typescript';
 import svelte from "rollup-plugin-svelte";
-import autoPreprocess from 'svelte-preprocess';
+import { sveltePreprocess } from 'svelte-preprocess';
 import json from '@rollup/plugin-json';
-import ignore from 'rollup-plugin-ignore';
 
 const isProd = (process.env.BUILD === 'production');
 
@@ -25,18 +24,60 @@ export default {
     exports: 'default',
     banner,
   },
-  external: ['obsidian'],
+  external: [
+    'obsidian',
+    'electron',
+    '@codemirror/autocomplete',
+    '@codemirror/collab',
+    '@codemirror/commands',
+    '@codemirror/language',
+    '@codemirror/lint',
+    '@codemirror/search',
+    '@codemirror/state',
+    '@codemirror/view',
+    '@lezer/common',
+    '@lezer/highlight',
+    '@lezer/lr',
+  ],
   plugins: [
-    ignore(["path", "url"], { commonjsBugFix: true }),
-    commonjs({
-      include: ['node_modules/**'],
-    }),
-    json(),
+    // 1. O Svelte deve vir primeiro para transformar os arquivos .svelte em JS/TS válidos
     svelte({
+      preprocess: sveltePreprocess(),
       emitCss: false,
-      preprocess: autoPreprocess()
+      onwarn: (warning, handler) => {
+        if (warning.code === 'export_let_unused') return;
+        if (warning.code.startsWith('a11y')) return;
+        if (warning.code === 'element_invalid_self_closing_tag') return;
+        handler(warning);
+      },
+      compilerOptions: {
+        css: true,
+        dev: !isProd,
+      }      
     }),
-    typescript(),
-    nodeResolve({ browser: true }),
-  ]
+    // 2. O nodeResolve precisa das condições de exportação para o Svelte 4/5
+    nodeResolve({
+      browser: true,
+      dedupe: ['svelte'],
+      extensions: ['.ts', '.js', '.svelte'],
+      exportConditions: ['svelte']
+    }),
+    // 3. O TypeScript NÃO deve incluir arquivos .svelte aqui, 
+    // pois o svelte-preprocess já cuida do <script lang="ts">
+    typescript({
+      sourceMap: !isProd,
+      inlineSources: !isProd,
+      tsconfig: "./tsconfig.json",
+      include: ["src/**/*.ts"], // Removido .svelte daqui
+      exclude: ["node_modules/**"]
+    }),
+    commonjs(),
+    json(),
+  ],
+  onwarn(warning, warn) {
+    if (warning.code === 'CIRCULAR_DEPENDENCY') return;
+    // Silencia o aviso do async_hooks que o Svelte 5 as vezes dispara no Rollup
+    if (warning.code === 'MISSING_NODE_BUILTINS' && warning.message.includes('node:async_hooks')) return;
+    warn(warning);
+  }
 };

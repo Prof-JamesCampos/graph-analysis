@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { App } from 'obsidian'
-  import { hoverPreview, isLinked } from 'obsidian-community-lib'
+  import { hoverPreview, isLinked, isInVault } from 'src/Utility'
   import type AnalysisView from 'src/AnalysisView'
   import { ANALYSIS_TYPES, ICON, MEASURE, NODE } from 'src/Constants'
   import type {
@@ -19,6 +19,7 @@
     openOrSwitch,
     presentPath,
   } from 'src/Utility'
+  
   import { onMount } from 'svelte'
   import FaLink from 'svelte-icons/fa/FaLink.svelte'
   import InfiniteScroll from 'svelte-infinite-scroll'
@@ -28,7 +29,7 @@
 
   export let app: App
   export let plugin: GraphAnalysisPlugin
-  export let settings: GraphAnalysisSettings
+  //export let settings: GraphAnalysisSettings
   export let view: AnalysisView
   export let currSubtype: Subtype
 
@@ -62,7 +63,7 @@
   let its = 20
   const iterationsArr = Array(50)
     .fill(0)
-    .map((i, j) => j + 1)
+    .map((_, j) => j + 1)
 
   $: promiseSortedResults = !plugin.g
     ? null
@@ -81,6 +82,7 @@
               })
             }
           })
+       
           componentResults.sort((a, b) =>
             a.comm.length > b.comm.length ? greater : lesser
           )
@@ -101,31 +103,30 @@
   })
 </script>
 
-<div class="GA-CCs" bind:this={current_component}>
-  <div>
-    <span>
-      <SubtypeOptions
-        bind:currSubtypeInfo
-        bind:ascOrder
-        bind:blockSwitch
-        bind:newBatch
-        bind:visibleData
-        bind:promiseSortedResults
-        bind:page
-        {plugin}
-        {view}
-        {app}
-      />
+<div class="GA-CC-Container" bind:this={current_component}>
+  <div class="GA-Header-Controls">
+    <SubtypeOptions
+      bind:currSubtypeInfo
+      bind:ascOrder
+      bind:blockSwitch
+      bind:newBatch
+      bind:visibleData
+      bind:promiseSortedResults
+      bind:page
+      {plugin}
+      {view}
+      {app}
+    />
 
-      <label for="iterations">Iterations: </label>
+    <div class="GA-Slider-Control">
+      <label for="iterations">Iterations: {its}</label>
       <input
         name="iterations"
         type="range"
         min="1"
         max="30"
-        value={its}
-        on:change={(e) => {
-          const value = Number.parseInt(e.target.value)
+        bind:value={its}
+        on:change={() => {
           blockSwitch = true
           visibleData = []
           promiseSortedResults = null
@@ -134,126 +135,127 @@
             blockSwitch = false
           }, 100)
           newBatch = []
-
-          its = value
         }}
       />
-    </span>
+    </div>
   </div>
-  {#if promiseSortedResults}
-    {#await promiseSortedResults then sortedResults}
-      {#key sortedResults}
-        {#each visibleData as comm}
-          <div class="GA-CC">
-            <details class="tree-item-self">
-              <summary
-                class="tree-item-inner"
-                on:contextmenu={(e) =>
-                  openMenu(e, app, { toCopy: comm.comm.join('\n') })}
-              >
-                <span
-                  class="top-row 
-                  {comm.comm.includes(currNode) ? 'currComm' : ''}"
-                >
-                  <span>
-                    <!-- Unecessary span? -->
-                    {presentPath(comm.label)}
-                  </span>
-                  <span class={MEASURE}>{comm.comm.length}</span>
-                </span>
-              </summary>
-              <div class="GA-details ">
-                {#each comm.comm as member}
-                  <div
-                    class="
-                    {NODE} 
-                    {classLinked(resolvedLinks, comm.label, member)}
-                    {classResolved(app, member)} 
-                    {classExt(member)}
-                      "
-                    on:click={async (e) => await openOrSwitch(app, member, e)}
-                    on:mouseover={(e) => hoverPreview(e, view, member)}
-                  >
-                    {#if isLinked(resolvedLinks, comm.label, member, false)}
-                      <span class={ICON}>
-                        <FaLink />
-                      </span>
-                    {/if}
-                    <ExtensionIcon path={member} />
-                    <span
-                      class="internal-link {currNode === member
-                        ? 'currNode'
-                        : ''}">{presentPath(member)}</span
-                    >
-                    {#if plugin.settings.showImgThumbnails && isImg(member)}
-                      <ImgThumbnail img={getImgBufferPromise(app, member)} />
-                    {/if}
-                  </div>
-                {/each}
-              </div>
-            </details>
-          </div>
-        {/each}
 
-        <InfiniteScroll
-          hasMore={sortedResults.length > visibleData.length}
-          threshold={100}
-          elementScroll={current_component.parentNode}
-          on:loadMore={() => {
-            if (!blockSwitch) {
-              page++
-              newBatch = sortedResults.slice(size * page, size * (page + 1) - 1)
-              console.log({ newBatch })
-            }
-          }}
-        />
-        {visibleData.length} / {sortedResults.length}
-      {/key}
-    {/await}
-  {/if}
+  <div class="GA-CC-List">
+    {#if promiseSortedResults}
+      {#await promiseSortedResults then sortedResults}
+        {#key sortedResults}
+          {#each visibleData as comm}
+            <div class="GA-CC">
+              <details class="tree-item-self">
+                <summary
+                  class="tree-item-inner"
+                  on:contextmenu={(e) =>
+                    openMenu(e, app, { toCopy: comm.comm.join('\n') })}
+                >
+                  <span class="top-row {comm.comm.includes(currNode) ? 'currComm' : ''}">
+                    <span class="GA-Label-Text">
+                      {presentPath(comm.label)}
+                    </span>
+                    <span class={MEASURE}>{comm.comm.length}</span>
+                  </span>
+                </summary>
+                <div class="GA-details">
+                  {#each comm.comm as member}
+                    <div
+                      class="{NODE} {classLinked(resolvedLinks, comm.label, member)} {classResolved(app, member)} {classExt(member)}"
+                      on:click={async (e) => await openOrSwitch(app, member, e)}
+                      on:mouseover={(e) => hoverPreview(e, view, member)}
+                    >
+                      {#if isLinked(resolvedLinks, comm.label, member, false)}
+                        <span class={ICON}>
+                          <FaLink />
+                        </span>
+                      {/if}
+                      <ExtensionIcon path={member} />
+                      <span class="internal-link {currNode === member ? 'currNode' : ''}">
+                        {presentPath(member)}
+                      </span>
+                      {#if plugin.settings.showImgThumbnails && isImg(member)}
+                        <ImgThumbnail img={getImgBufferPromise(app, member)} />
+                      {/if}
+                    </div>
+                  {/each}
+                </div>
+              </details>
+            </div>
+          {/each}
+
+          <InfiniteScroll
+            hasMore={sortedResults.length > visibleData.length}
+            threshold={100}
+            elementScroll={current_component?.parentNode}
+            on:loadMore={() => {
+              if (!blockSwitch) {
+                page++
+                newBatch = sortedResults.slice(size * page, size * (page + 1) - 1)
+              }
+            }}
+          />
+          
+          <div class="GA-Footer-Stats">
+            {visibleData.length} / {sortedResults.length}
+          </div>
+        {/key}
+      {/await}
+    {/if}
+  </div>
 </div>
 
 <style>
-  .GA-CCs {
+  .GA-CC-Container {
     display: flex;
     flex-direction: column;
     padding-left: 10px;
   }
 
+  .GA-Header-Controls {
+    margin-bottom: 10px;
+  }
+
+  .GA-Slider-Control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 5px;
+  }
+
+  .GA-Footer-Stats {
+    padding: 10px;
+    text-align: right;
+    font-size: var(--font-size-small);
+    color: var(--text-muted);
+  }
+
   .is-unresolved {
     color: var(--text-muted);
   }
-  /* .GA-CC {
-        border: 1px solid var(--background-modifier-border);
-        border-radius: 3px; 
-        padding: 5px; 
-      } */
 
   .GA-details {
     padding-left: 20px;
   }
+
   .GA-node,
   .CC-sentence {
     font-size: var(--font-size-secondary);
     border: 1px solid transparent;
     border-radius: 5px;
+    cursor: pointer;
   }
 
   .CC-sentence:hover {
     background-color: var(--background-secondary-alt);
   }
 
-  .CC-item {
-    padding-left: 30px;
-    font-weight: 600;
-  }
-
-  .CC-sentence {
-    padding-left: 40px;
-    color: var(--text-muted);
-  }
-  .top-row span + span {
-    float: right;
+  .top-row {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    align-items: center;
   }
 
   span.GA-measure {
@@ -261,10 +263,6 @@
     padding: 2px 4px;
     border-radius: 3px;
     font-size: 12px;
-    line-height: 12px;
-  }
-  span.GA-measure:hover {
-    background-color: var(--interactive-accent);
   }
 
   .currComm {

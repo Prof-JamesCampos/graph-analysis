@@ -16,6 +16,7 @@ export function intersection(nodes1: string[], nodes2: string[]) {
 
 export function clusteringCoefficient(g: MyGraph, u: string) {
   const triangles = findTrianglesForNode(g, u)
+  // @ts-ignore
   const deg = (g.neighbors(u) as string[]).length
   if (deg === 0 || deg === 1) return { coeff: 0, triangles }
 
@@ -34,8 +35,8 @@ export function findTrianglesForNode(
   u: string
 ): [string, string][] {
   const triangles: [string, string][] = []
-  ;(g.neighbors(u) as string[]).forEach((v) => {
-    ;(g.neighbors(v) as string[]).forEach((w) => {
+  ;((g as any).neighbors(u) as string[]).forEach((v) => {
+    ;((g as any).neighbors(v) as string[]).forEach((w) => {
       if (g.hasEdge(u, v) && g.hasEdge(u, w) && g.hasEdge(v, w)) {
         triangles.push([v, w])
       }

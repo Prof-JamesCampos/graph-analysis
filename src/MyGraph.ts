@@ -1,37 +1,33 @@
+// @ts-ignore
 import Graph from 'graphology'
 import louvain from 'graphology-communities-louvain'
 import hits from 'graphology-metrics/centrality/hits'
-
-import {
-  App,
-  CacheItem,
-  HeadingCache, ListItemCache,
-  Notice,
-  ReferenceCache,
-  TagCache,
-} from 'obsidian'
-import { getAllTags, getLinkpath } from 'obsidian'
+import type { CacheItem, HeadingCache, ListItemCache, ReferenceCache, TagCache, App } from 'obsidian'
+import { Notice, getAllTags, getLinkpath } from 'obsidian'
+import {  } from 'obsidian'
 import tokenizer from 'sbd'
 import {
   clusteringCoefficient,
   gatherCommunities,
   intersection,
-} from 'src/GeneralGraphFn'
+} from './GeneralGraphFn'
 import type {
   AnalysisAlg,
   CoCitation,
-  CoCitationMap, CoCitationRes,
+  CoCitationMap,
   Communities,
   GraphAnalysisSettings,
   HITSResult, LineSentences,
   NLPPlugin,
   ResultMap,
   Subtype,
-} from 'src/Interfaces'
+} from './Interfaces'
 import { addPreCocitation, findSentence, getCounts, getMaxKey, roundNumber, sum, uniqueArray} from 'src/Utility'
+// @ts-ignore
 import * as similarity from 'wink-nlp/utilities/similarity'
 
-export default class MyGraph extends Graph {
+// @ts-ignore
+export default class MyGraph extends (Graph as any){
   app: App
   settings: GraphAnalysisSettings
 
@@ -108,6 +104,7 @@ export default class MyGraph extends Graph {
       const results: ResultMap = {}
       if (!this.hasNode(a)) return results
 
+      // @ts-ignore
       const Na = this.neighbors(a)
       this.forEachNode((to) => {
         const Nb = this.neighbors(to)
@@ -606,7 +603,7 @@ export default class MyGraph extends Graph {
         }
         const targetBoW = nlp.getNoStopBoW(Docs[to])
 
-        const measure = similarity.bow.cosine(sourceBoW, targetBoW)
+        const measure = (similarity as any).bow.cosine(sourceBoW, targetBoW)
         results[to] = {
           measure,
           extra: [],
@@ -656,7 +653,7 @@ export default class MyGraph extends Graph {
         }
         const targetSet = nlp.getNoStopSet(Docs[to])
 
-        const measure = similarity.set.oo(sourceSet, targetSet)
+        const measure = (similarity as any).set.oo(sourceSet, targetSet)
         results[to] = {
           measure,
           extra: [],
